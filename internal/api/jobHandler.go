@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"log"
 
 	"github.com/akhilbisht798/gocrony/internal/db"
 	"github.com/akhilbisht798/gocrony/internal/models"
@@ -17,6 +16,7 @@ func init() {
 	validate = validator.New()
 }
 
+// TODO: add auth middleware and authentication later.
 func CreateNewJob(c *gin.Context) {
 	var req models.CreateJobRequest
 	if err := c.BindJSON(&req); err != nil {
@@ -63,10 +63,42 @@ func UpdateJob(c *gin.Context) {
 		})
 		return
 	}
-	log.Println(req.URL)
+
+	if err := validate.Struct(req); err != nil {
+		c.JSON(400, gin.H{
+			"error": "validation failed: " + err.Error(),
+		})
+		return
+	}
+
+	updates := make(map[string]interface{})
+	if req.URL != "" {
+		updates["url"] = req.URL
+	}
+	if req.Method != "" {
+		updates["method"] = req.Method
+	}
+	if req.Headers != nil {
+		headerJson, _ := json.Marshal(req.Headers)
+		updates["headers"] = datatypes.JSON(headerJson)
+	}
+	if req.Body != nil {
+		bodyJson, _ := json.Marshal(req.Body)
+		updates["body"] = datatypes.JSON(bodyJson)
+	}
+	if req.Schedule != "" {
+		updates["schedule"] = req.Schedule
+	}
+	if err := db.DB.Model(&models.Jobs{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
+		c.JSON(500, gin.H{
+			"error": "failed to update job: " + err.Error(),
+		})
+		return
+	}
+
 	c.JSON(200, gin.H{
-		"message": "Job recived",
-		"data":    req,
+		"message": "job updated successfully",
+		"data":    updates,
 	})
 }
 
@@ -78,15 +110,27 @@ func GetJob(c *gin.Context) {
 		})
 		return
 	}
+	var job models.Jobs
+	if err := db.DB.First(&job, "id=?", id).Error; err != nil {
+		c.JSON(400, gin.H{
+			"error": "job not found",
+		})
+	}
 	c.JSON(200, gin.H{
-		"id": id,
+		"job": job,
 	})
 }
 
 // TODO: Only that jobs that are created by him. so add user auth.
 func GetAllJobs(c *gin.Context) {
+	var jobs []models.Jobs
+	if err := db.DB.Find(&jobs).Error; err != nil {
+		c.JSON(500, gin.H{
+			"error": "failed to fetch jobs: " + err.Error(),
+		})
+	}
 	c.JSON(200, gin.H{
-		"jobs": "o",
+		"jobs": jobs,
 	})
 }
 
@@ -98,8 +142,16 @@ func DeleteJob(c *gin.Context) {
 		})
 		return
 	}
+	var job models.Jobs
+	if err := db.DB.Delete(&job, "id = ?", id).Error; err != nil {
+		c.JSON(500, gin.H{
+			"error": "failed to delete job: " + err.Error(),
+		})
+		return
+	}
 	c.JSON(200, gin.H{
 		"message": "successfully deleted",
+		"id":      id,
 	})
 }
 
@@ -111,6 +163,7 @@ func RunJob(c *gin.Context) {
 		})
 		return
 	}
+	// Function to run the job would go here.
 	c.JSON(200, gin.H{
 		"message": "successfully deleted",
 	})
