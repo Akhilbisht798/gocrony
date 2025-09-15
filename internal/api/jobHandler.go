@@ -1,13 +1,11 @@
 package api
 
 import (
-	"encoding/json"
-
 	"github.com/akhilbisht798/gocrony/internal/db"
 	"github.com/akhilbisht798/gocrony/internal/models"
+	"github.com/akhilbisht798/gocrony/internal/scheduler"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"gorm.io/datatypes"
 )
 
 var validate *validator.Validate
@@ -17,6 +15,8 @@ func init() {
 }
 
 // TODO: add auth middleware and authentication later.
+// TODO: check the method for url before putting it on db.
+// TODO: check the cron schedule before putting it on db.
 func CreateNewJob(c *gin.Context) {
 	var req models.CreateJobRequest
 	if err := c.BindJSON(&req); err != nil {
@@ -33,16 +33,15 @@ func CreateNewJob(c *gin.Context) {
 		return
 	}
 
-	headerJson, _ := json.Marshal(req.Headers)
-	bodyJson, _ := json.Marshal(req.Body)
-
-	job := models.Jobs{
-		URL:      req.URL,
-		Method:   req.Method,
-		Headers:  datatypes.JSON(headerJson),
-		Body:     datatypes.JSON(bodyJson),
+	job := models.Job{
+		Name:     req.Name,
 		Schedule: req.Schedule,
+		Type:     req.Type,
+		Payload:  req.Payload,
 	}
+
+	job.NextRun, _ = scheduler.GetNextRun(req.Schedule)
+
 	if err := db.DB.Create(&job).Error; err != nil {
 		c.JSON(500, gin.H{
 			"error": "failed to create job: " + err.Error(),
@@ -71,25 +70,21 @@ func UpdateJob(c *gin.Context) {
 		return
 	}
 
-	updates := make(map[string]interface{})
-	if req.URL != "" {
-		updates["url"] = req.URL
-	}
-	if req.Method != "" {
-		updates["method"] = req.Method
-	}
-	if req.Headers != nil {
-		headerJson, _ := json.Marshal(req.Headers)
-		updates["headers"] = datatypes.JSON(headerJson)
-	}
-	if req.Body != nil {
-		bodyJson, _ := json.Marshal(req.Body)
-		updates["body"] = datatypes.JSON(bodyJson)
-	}
+	updates := make(map[string]any)
 	if req.Schedule != "" {
-		updates["schedule"] = req.Schedule
+		updates["Schedule"] = req.Schedule
+		updates["NextRun"], _ = scheduler.GetNextRun(req.Schedule)
 	}
-	if err := db.DB.Model(&models.Jobs{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
+	if req.Name != "" {
+		updates["Name"] = req.Name
+	}
+	if req.Type != "" {
+		updates["Type"] = req.Type
+	}
+	if req.Payload != nil {
+		updates["Payload"] = req.Payload
+	}
+	if err := db.DB.Model(&models.Job{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
 		c.JSON(500, gin.H{
 			"error": "failed to update job: " + err.Error(),
 		})
@@ -110,7 +105,7 @@ func GetJob(c *gin.Context) {
 		})
 		return
 	}
-	var job models.Jobs
+	var job models.Job
 	if err := db.DB.First(&job, "id=?", id).Error; err != nil {
 		c.JSON(400, gin.H{
 			"error": "job not found",
@@ -123,7 +118,7 @@ func GetJob(c *gin.Context) {
 
 // TODO: Only that jobs that are created by him. so add user auth.
 func GetAllJobs(c *gin.Context) {
-	var jobs []models.Jobs
+	var jobs []models.Job
 	if err := db.DB.Find(&jobs).Error; err != nil {
 		c.JSON(500, gin.H{
 			"error": "failed to fetch jobs: " + err.Error(),
@@ -142,7 +137,7 @@ func DeleteJob(c *gin.Context) {
 		})
 		return
 	}
-	var job models.Jobs
+	var job models.Job
 	if err := db.DB.Delete(&job, "id = ?", id).Error; err != nil {
 		c.JSON(500, gin.H{
 			"error": "failed to delete job: " + err.Error(),

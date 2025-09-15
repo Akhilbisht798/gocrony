@@ -18,6 +18,6 @@ func InitDB() {
 		log.Fatal("failed to connect to database: ", err)
 	}
 	DB = db
-	DB.AutoMigrate(&models.Jobs{}, &models.Logs{})
+	DB.AutoMigrate(&models.Job{}, &models.Logs{})
 	log.Println("successfully connected to database!")
 }

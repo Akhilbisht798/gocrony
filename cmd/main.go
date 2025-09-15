@@ -6,6 +6,7 @@ import (
 	"github.com/akhilbisht798/gocrony/config"
 	"github.com/akhilbisht798/gocrony/internal/api"
 	"github.com/akhilbisht798/gocrony/internal/db"
+	"github.com/akhilbisht798/gocrony/internal/scheduler"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,6 +16,8 @@ func main() {
 
 	port := ":" + config.GetEnv("PORT", "8080")
 	router := gin.Default()
+
+	go scheduler.Scheduler()
 
 	router.GET("/", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{
