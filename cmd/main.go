@@ -25,13 +25,13 @@ func main() {
 		})
 	})
 
-	router.POST("/jobs", api.CreateNewJob)
-	router.GET("/jobs", api.GetAllJobs)
-	router.GET("/jobs/:id", api.GetJob)
-	router.PUT("/jobs/:id", api.UpdateJob)
-	router.DELETE("/jobs/:id", api.DeleteJob)
-	router.GET("/jobs/:id/logs", api.GetLogs)
-	router.POST("/jobs/:id/run", api.RunJob)
+	router.POST("/api/v1/jobs", api.CreateNewJob)
+	router.GET("/api/v1/jobs", api.GetAllJobs)
+	router.GET("/api/v1/jobs/:id", api.GetJob)
+	router.PUT("/api/v1/jobs/:id", api.UpdateJob)
+	router.DELETE("/api/v1/jobs/:id", api.DeleteJob)
+	router.GET("/api/v1/jobs/:id/logs", api.GetLogs)
+	router.POST("/api/v1/jobs/:id/run", api.RunJob)
 
 	router.Run(port)
 }
