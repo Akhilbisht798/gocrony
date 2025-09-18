@@ -1,6 +1,8 @@
 package models
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type CreateJobRequest struct {
 	Name     string          `json:"name" validate:"required"`
@@ -10,9 +12,21 @@ type CreateJobRequest struct {
 }
 
 type UpdateJobRequest struct {
-	ID       string          `json:"id" validate:"required"`
-	Name     string          `json:"name" validate:"required"`
-	Payload  json.RawMessage `json:"payload" validate:"required"`
-	Schedule string          `json:"schedule" validate:"required"`
-	Type     JobType         `json:"type" validate:"required,oneof=http sql queue"`
+	Name     string          `json:"name,omitempty"`
+	Payload  json.RawMessage `json:"payload,omitempty"`
+	Schedule string          `json:"schedule,omitempty"`
+	Type     JobType         `json:"type,omitempty" validate:"omitempty,oneof=http sql queue"`
+}
+
+type UserSignUpRequest struct {
+	Email     string `json:"email" validate:"required,email"`
+	Name      string `json:"name" validate:"required"`
+	Password  string `json:"password" validate:"required,min=6"`
+	AvatarUrl string `json:"avatar_url,omitempty"`
+}
+
+type UserLoginRequest struct {
+	Name      string `json:"name,omitempty"`
+	AvatarUrl string `json:"avatar_url,omitempty"`
+	Password  string `json:"password" validate:"required,min=6"`
 }

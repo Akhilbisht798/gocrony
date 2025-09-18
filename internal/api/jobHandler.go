@@ -56,6 +56,13 @@ func CreateNewJob(c *gin.Context) {
 
 func UpdateJob(c *gin.Context) {
 	var req models.UpdateJobRequest
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(400, gin.H{
+			"error": "invalid paramerter",
+		})
+		return
+	}
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(400, gin.H{
 			"error": "invalid JSON",
@@ -84,7 +91,7 @@ func UpdateJob(c *gin.Context) {
 	if req.Payload != nil {
 		updates["Payload"] = req.Payload
 	}
-	if err := db.DB.Model(&models.Job{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
+	if err := db.DB.Model(&models.Job{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		c.JSON(500, gin.H{
 			"error": "failed to update job: " + err.Error(),
 		})
