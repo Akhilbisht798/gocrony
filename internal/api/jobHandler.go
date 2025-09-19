@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/akhilbisht798/gocrony/internal/db"
+	"github.com/akhilbisht798/gocrony/internal/middleware"
 	"github.com/akhilbisht798/gocrony/internal/models"
 	"github.com/akhilbisht798/gocrony/internal/scheduler"
 	"github.com/gin-gonic/gin"
@@ -14,10 +15,15 @@ func init() {
 	validate = validator.New()
 }
 
-// TODO: add auth middleware and authentication later.
-// TODO: check the method for url before putting it on db.
-// TODO: check the cron schedule before putting it on db.
 func CreateNewJob(c *gin.Context) {
+	userId, err := middleware.ParseUserID(c)
+	if err != nil {
+		c.JSON(401, gin.H{
+			"error": "error parsing userId: " + err.Error(),
+		})
+		return
+	}
+
 	var req models.CreateJobRequest
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(400, gin.H{
@@ -38,6 +44,7 @@ func CreateNewJob(c *gin.Context) {
 		Schedule: req.Schedule,
 		Type:     req.Type,
 		Payload:  req.Payload,
+		UserID:   userId,
 	}
 
 	job.NextRun, _ = scheduler.GetNextRun(req.Schedule)
@@ -46,6 +53,7 @@ func CreateNewJob(c *gin.Context) {
 		c.JSON(500, gin.H{
 			"error": "failed to create job: " + err.Error(),
 		})
+		return
 	}
 
 	c.JSON(200, gin.H{
@@ -55,6 +63,13 @@ func CreateNewJob(c *gin.Context) {
 }
 
 func UpdateJob(c *gin.Context) {
+	userId, err := middleware.ParseUserID(c)
+	if err != nil {
+		c.JSON(401, gin.H{
+			"error": "error parsing userId: " + err.Error(),
+		})
+		return
+	}
 	var req models.UpdateJobRequest
 	id := c.Param("id")
 	if id == "" {
@@ -91,9 +106,18 @@ func UpdateJob(c *gin.Context) {
 	if req.Payload != nil {
 		updates["Payload"] = req.Payload
 	}
-	if err := db.DB.Model(&models.Job{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+	tx := db.DB.Model(&models.Job{}).
+		Where("id = ? AND user_id = ?", id, userId).
+		Updates(updates)
+	if tx.Error != nil {
 		c.JSON(500, gin.H{
-			"error": "failed to update job: " + err.Error(),
+			"error": "failed to update job: " + tx.Error.Error(),
+		})
+		return
+	}
+	if tx.RowsAffected == 0 {
+		c.JSON(404, gin.H{
+			"error": "job not found or you don't have permission to update this job",
 		})
 		return
 	}
@@ -105,6 +129,13 @@ func UpdateJob(c *gin.Context) {
 }
 
 func GetJob(c *gin.Context) {
+	userId, err := middleware.ParseUserID(c)
+	if err != nil {
+		c.JSON(401, gin.H{
+			"error": "error parsing userId: " + err.Error(),
+		})
+		return
+	}
 	id := c.Param("id")
 	if id == "" {
 		c.JSON(400, gin.H{
@@ -113,10 +144,11 @@ func GetJob(c *gin.Context) {
 		return
 	}
 	var job models.Job
-	if err := db.DB.First(&job, "id=?", id).Error; err != nil {
-		c.JSON(400, gin.H{
+	if err := db.DB.First(&job, "id = ? AND user_id = ?", id, userId).Error; err != nil {
+		c.JSON(404, gin.H{
 			"error": "job not found",
 		})
+		return
 	}
 	c.JSON(200, gin.H{
 		"job": job,
@@ -125,11 +157,20 @@ func GetJob(c *gin.Context) {
 
 // TODO: Only that jobs that are created by him. so add user auth.
 func GetAllJobs(c *gin.Context) {
-	var jobs []models.Job
-	if err := db.DB.Find(&jobs).Error; err != nil {
-		c.JSON(500, gin.H{
-			"error": "failed to fetch jobs: " + err.Error(),
+	userId, err := middleware.ParseUserID(c)
+	if err != nil {
+		c.JSON(401, gin.H{
+			"error": "error parsing userId: " + err.Error(),
 		})
+		return
+	}
+	var jobs []models.Job
+	tx := db.DB.Where("user_id = ?", userId).Find(&jobs)
+	if tx.Error != nil {
+		c.JSON(500, gin.H{
+			"error": "failed to fetch jobs: " + tx.Error.Error(),
+		})
+		return
 	}
 	c.JSON(200, gin.H{
 		"jobs": jobs,
@@ -137,6 +178,13 @@ func GetAllJobs(c *gin.Context) {
 }
 
 func DeleteJob(c *gin.Context) {
+	userId, err := middleware.ParseUserID(c)
+	if err != nil {
+		c.JSON(401, gin.H{
+			"error": "error parsing userId: " + err.Error(),
+		})
+		return
+	}
 	id := c.Param("id")
 	if id == "" {
 		c.JSON(400, gin.H{
@@ -144,11 +192,15 @@ func DeleteJob(c *gin.Context) {
 		})
 		return
 	}
-	var job models.Job
-	if err := db.DB.Delete(&job, "id = ?", id).Error; err != nil {
+	tx := db.DB.Delete(&models.Job{}, "id = ? AND user_id = ?", id, userId)
+	if tx.Error != nil {
 		c.JSON(500, gin.H{
-			"error": "failed to delete job: " + err.Error(),
+			"error": "failed to delete job: " + tx.Error.Error(),
 		})
+		return
+	}
+	if tx.RowsAffected == 0 {
+		c.JSON(404, gin.H{ "error": "job not found or not owned by user." })
 		return
 	}
 	c.JSON(200, gin.H{
@@ -158,6 +210,13 @@ func DeleteJob(c *gin.Context) {
 }
 
 func RunJob(c *gin.Context) {
+	_, err := middleware.ParseUserID(c)
+	if err != nil {
+		c.JSON(401, gin.H{
+			"error": "error parsing userId: " + err.Error(),
+		})
+		return
+	}
 	id := c.Param("id")
 	if id == "" {
 		c.JSON(400, gin.H{
@@ -167,6 +226,6 @@ func RunJob(c *gin.Context) {
 	}
 	// Function to run the job would go here.
 	c.JSON(200, gin.H{
-		"message": "successfully deleted",
+		"message": "successfully runned the job",
 	})
 }

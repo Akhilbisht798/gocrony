@@ -204,8 +204,7 @@ func EmailPasswordAuthSignIn(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"token": token,
+		"token":   token,
 		"message": "succesfully logged in",
 	})
-	return
 }

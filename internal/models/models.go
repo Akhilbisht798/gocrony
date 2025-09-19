@@ -26,14 +26,18 @@ type Job struct {
 	Name      string          `json:"name"`
 	Payload   json.RawMessage `json:"payload"` // one-time or recurring
 	Type      JobType         `json:"type"`
+	UserID    uuid.UUID       `gorm:"type:uuid;index" json:"user_id"`
+	User      User            `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Logs      []Logs          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 type Logs struct {
 	ID       uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	JobId    uuid.UUID `json:"job_id" gorm:"type:uuid"`
 	Status   int       `json:"status"`
 	Response string    `json:"response"`
 	RunAt    time.Time `json:"run_at"`
+	JobID    uuid.UUID `gorm:"type:uuid;index" json:"job_id"`
+	Job      Job       `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 type User struct {
@@ -43,7 +47,8 @@ type User struct {
 	AvatarUrl string
 	CreatedAt time.Time
 
-	Identities []UserIdentity
+	Identities []UserIdentity `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Jobs       []Job          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 type UserIdentity struct {
