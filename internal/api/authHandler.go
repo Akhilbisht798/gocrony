@@ -3,10 +3,10 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 
+	"github.com/akhilbisht798/gocrony/internal/auth"
 	"github.com/akhilbisht798/gocrony/internal/db"
 	"github.com/akhilbisht798/gocrony/internal/models"
 	"github.com/gin-gonic/gin"
@@ -27,12 +27,11 @@ func GetAuthCallbackFunction(c *gin.Context) {
 		return
 	}
 
-	fmt.Println(gothicUser)
+	var user models.User
 	var userIdentity models.UserIdentity
 	res := db.DB.Preload("User").Where("provider = ? AND provider_id = ?", gothicUser.Provider, gothicUser.UserID).First(&userIdentity)
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			var user models.User
 			if err := db.DB.Where("email = ?", gothicUser.Email).First(&user).Error; err == nil {
 				newIdentity := models.UserIdentity{
 					UserID:     user.ID,
@@ -41,12 +40,12 @@ func GetAuthCallbackFunction(c *gin.Context) {
 				}
 				db.DB.Create(&newIdentity)
 			} else {
-				newUser := models.User{
+				user = models.User{
 					Email:     gothicUser.Email,
 					Name:      gothicUser.Name,
 					AvatarUrl: gothicUser.AvatarURL,
 				}
-				db.DB.Create(&newUser)
+				db.DB.Create(&user)
 				newIdentity := models.UserIdentity{
 					UserID:     user.ID,
 					Provider:   gothicUser.Provider,
@@ -60,7 +59,20 @@ func GetAuthCallbackFunction(c *gin.Context) {
 			return
 		}
 	}
+	if res.Error == nil {
+		user = userIdentity.User
+	}
 	//Send back jwt.
+	token, err := auth.GenrateJWT(user.ID.String(), user.Email, gothicUser.Provider)
+	if err != nil {
+		log.Println("Error generating JWT:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Authentication successful",
+		"token":   token,
+	})
 }
 
 func Logout(c *gin.Context) {
@@ -111,7 +123,7 @@ func EmailPasswordAuthSignUp(c *gin.Context) {
 
 		newIdentity := models.UserIdentity{
 			UserID:       user.ID,
-			Provider:     "email",
+			Provider:     string(auth.Email),
 			ProviderID:   req.Email,
 			PasswordHash: string(hashPassword),
 		}
@@ -134,8 +146,8 @@ func EmailPasswordAuthSignUp(c *gin.Context) {
 			c.JSON(500, gin.H{"error": "failed to create user: " + err.Error()})
 		}
 		newIdentity := models.UserIdentity{
-			UserID:       user.ID,
-			Provider:     "email",
+			UserID:       newUser.ID,
+			Provider:     string(auth.Email),
 			ProviderID:   req.Email,
 			PasswordHash: string(hashPassword),
 		}
@@ -149,4 +161,51 @@ func EmailPasswordAuthSignUp(c *gin.Context) {
 	}
 
 	c.JSON(500, gin.H{"error": "database error: " + err.Error()})
+}
+
+func EmailPasswordAuthSignIn(c *gin.Context) {
+	var req models.UserLoginRequest
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(400, gin.H{
+			"error": "invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := validate.Struct(req); err != nil {
+		c.JSON(400, gin.H{
+			"error": "validation failed: " + err.Error(),
+		})
+		return
+	}
+	var userIdentity models.UserIdentity
+	res := db.DB.Preload("User").Where("provider_id = ? AND provider = ?", req.Email, "email").First(&userIdentity)
+	if res.Error != nil {
+		c.JSON(400, gin.H{
+			"error": "user not found, Sign up first",
+		})
+		return
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(userIdentity.PasswordHash), []byte(req.Password))
+	if err != nil {
+		c.JSON(400, gin.H{
+			"error": "wrong password.",
+		})
+		return
+	}
+
+	token, err := auth.GenrateJWT(userIdentity.User.ID.String(), userIdentity.User.Email, string(auth.Email))
+	if err != nil {
+		c.JSON(400, gin.H{
+			"error": "error creating token",
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"token": token,
+		"message": "succesfully logged in",
+	})
+	return
 }

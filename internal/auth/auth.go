@@ -16,6 +16,12 @@ const (
 	isProd = false
 )
 
+type Provider string
+const (
+	Email Provider = "email"
+	Google Provider = "google"
+)
+
 func NewAuth() {
 	googleClientId := config.GetEnv("GOOGLE_CLIENT_ID", "")
 	googleClientSecret := config.GetEnv("GOOGLE_CLIENT_SECRET", "")

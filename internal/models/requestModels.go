@@ -26,7 +26,6 @@ type UserSignUpRequest struct {
 }
 
 type UserLoginRequest struct {
-	Name      string `json:"name,omitempty"`
-	AvatarUrl string `json:"avatar_url,omitempty"`
+	Email     string `json:"email" validate:"required,email"`
 	Password  string `json:"password" validate:"required,min=6"`
 }
