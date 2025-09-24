@@ -9,6 +9,9 @@ type CreateJobRequest struct {
 	Payload  json.RawMessage `json:"payload" validate:"required"`
 	Schedule string          `json:"schedule" validate:"required"`
 	Type     JobType         `json:"type" validate:"required,oneof=http sql queue"`
+	Recurring *bool 		`json:"recurring" validate:"required"`
+	Enabled   *bool  		`json:"enabled" validate:"required"`
+	Timezone string          `json:"timezone" validate:"required"`
 }
 
 type UpdateJobRequest struct {
@@ -16,6 +19,9 @@ type UpdateJobRequest struct {
 	Payload  json.RawMessage `json:"payload,omitempty"`
 	Schedule string          `json:"schedule,omitempty"`
 	Type     JobType         `json:"type,omitempty" validate:"omitempty,oneof=http sql queue"`
+	Recurring *bool 		`json:"recurring,omitempty"`
+	Enabled   *bool  		`json:"enabled,omitempty"`
+	Timezone string          `json:"timezone,omitempty"`
 }
 
 type UserSignUpRequest struct {

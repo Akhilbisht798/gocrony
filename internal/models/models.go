@@ -9,12 +9,20 @@ import (
 )
 
 type JobType string
+type StatusType string
 
 const (
 	JobTypeHTTP JobType = "http"
 	// JobTypeShell JobType = "shell"
 	JobTypeSQL   JobType = "sql"
 	JobTypeQueue JobType = "queue"
+)
+
+const (
+	StatusQueued StatusType = "queued"
+	StatusPending StatusType = "pending"
+	StatusFailed StatusType = "failed"
+	StatusAborted StatusType = "aborted"
 )
 
 type Job struct {
@@ -26,16 +34,23 @@ type Job struct {
 	Name      string          `json:"name"`
 	Payload   json.RawMessage `json:"payload"` // one-time or recurring
 	Type      JobType         `json:"type"`
+	Recurring bool			  `json:"recurring"`
+	Enabled   bool 			  `json:"enabled"`
+	Status    StatusType 	  `json:"status"`
+	Timezone  string           `json:"timezone"`
 	UserID    uuid.UUID       `gorm:"type:uuid;index" json:"user_id"`
+	Retry		int 		   `json:"retry"`
 	User      User            `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	Logs      []Logs          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 type Logs struct {
 	ID       uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	Status   int       `json:"status"`
+	Status   string `json:"status"`
+	StatusCode int 	`json:"status_code"`
 	Response string    `json:"response"`
 	RunAt    time.Time `json:"run_at"`
+	Duration int64 `json:"duration"`
 	JobID    uuid.UUID `gorm:"type:uuid;index" json:"job_id"`
 	Job      Job       `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
